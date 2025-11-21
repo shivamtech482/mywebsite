@@ -1,0 +1,554 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Pepsi Daily Consumption Tracker — Firebase</title>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    :root{
+      --bg1:#071022;
+      --bg2:#0b1220;
+      --card:#07111a;
+      --accent:#0ea5ff;
+      --accent-2:#60a5fa;
+      --muted:#94a3b8;
+      --text:#e6eef8;
+      --glass: rgba(255,255,255,0.04);
+      --glass-2: rgba(255,255,255,0.02);
+      --danger:#ef4444;
+    }
+
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family:Inter, system-ui, Arial, sans-serif;
+      color:var(--text);
+      background: radial-gradient(1200px 500px at 10% 10%, rgba(14,165,255,0.05), transparent),
+                  linear-gradient(180deg,var(--bg1),var(--bg2));
+      background-size: cover;
+      padding:28px;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+      overflow-y:auto;
+    }
+
+    /* subtle animated gradient overlay */
+    body::before{
+      content:"";
+      position:fixed;
+      inset:0;
+      background: linear-gradient(120deg, rgba(14,165,255,0.03), rgba(96,165,250,0.02) 40%, rgba(255,255,255,0.00));
+      pointer-events:none;
+      filter: blur(40px);
+      opacity:0.9;
+      animation: bgDrift 18s linear infinite;
+      z-index:0;
+    }
+    @keyframes bgDrift{
+      0%{transform:translateY(0) rotate(0deg)}
+      50%{transform:translateY(-30px) rotate(3deg)}
+      100%{transform:translateY(0) rotate(0deg)}
+    }
+
+    .container{
+      max-width:980px;
+      margin:0 auto;
+      position:relative;
+      z-index:1;
+    }
+
+    .topbar{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:12px;
+      margin-bottom:18px;
+      padding:10px;
+    }
+
+    h1{
+      margin:0;
+      font-size:20px;
+      letter-spacing:0.2px;
+      display:inline-flex;
+      align-items:center;
+    }
+
+    /* neon-ish glowing title accent */
+    h1::after{
+      content:"";
+      display:inline-block;
+      width:8px;height:8px;margin-left:10px;border-radius:50%;
+      background:linear-gradient(180deg,var(--accent),var(--accent-2));
+      box-shadow:0 0 10px rgba(14,165,255,0.45), 0 0 24px rgba(96,165,250,0.15);
+    }
+
+    .muted{color:var(--muted);font-size:13px}
+    .authBtn{
+      background:transparent;
+      border:1px solid rgba(255,255,255,0.06);
+      color:var(--text);
+      padding:8px 10px;border-radius:8px;
+      backdrop-filter: blur(4px);
+      transition:all .22s ease;
+    }
+    .authBtn:hover{ transform:translateY(-3px); box-shadow:0 6px 20px rgba(14,165,255,0.06) }
+
+    /* card style - glass + glow */
+    .card{
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border: 1px solid rgba(255,255,255,0.03);
+      padding:16px;
+      border-radius:12px;
+      box-shadow: 0 8px 30px rgba(3,7,18,0.6), inset 0 1px 0 rgba(255,255,255,0.01);
+      margin-bottom:16px;
+      transform-origin:center;
+      overflow:hidden;
+    }
+
+    form{display:flex;gap:8px;flex-wrap:wrap}
+    input,button,select{
+      padding:9px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.06);
+      background:transparent;color:var(--text);font-size:14px;outline:none;
+      transition:all .18s ease;
+    }
+
+    input[type="number"]{width:120px}
+    input[type="date"]{width:160px}
+    input[type="text"]{width:180px}
+    button{cursor:pointer;background:var(--accent);border:none;color:#032; font-weight:700}
+    .danger{background:var(--danger); color:#fff; border:none}
+
+    /* input focus glow */
+    input:focus, select:focus, textarea:focus{
+      transform:translateY(-2px);
+      box-shadow: 0 6px 26px rgba(14,165,255,0.08), 0 0 8px rgba(14,165,255,0.18);
+      border-color: rgba(14,165,255,0.6);
+    }
+
+    .stats{display:flex;gap:12px;flex-wrap:wrap;margin-top:12px}
+    .stat{
+      background: linear-gradient(180deg, rgba(255,255,255,0.015), rgba(255,255,255,0.01));
+      padding:10px 14px;border-radius:10px;font-size:14px;
+      min-width:120px; text-align:center;
+      border:1px solid rgba(255,255,255,0.02);
+      box-shadow: 0 6px 18px rgba(3,7,18,0.6);
+    }
+
+    table{width:100%;border-collapse:collapse;margin-top:12px}
+    th,td{padding:10px;border-bottom:1px dashed rgba(255,255,255,0.03);text-align:left;font-size:13px}
+    th{color:var(--muted);font-weight:600}
+    .small{font-size:12px;color:var(--muted)}
+
+    /* button glow on hover */
+    button:hover{
+      transform:translateY(-4px) scale(1.02);
+      box-shadow: 0 10px 30px rgba(14,165,255,0.08), 0 0 24px rgba(14,165,255,0.12);
+    }
+
+    /* delete button micro */
+    .delBtn{
+      padding:6px 8px;border-radius:8px;border:none;cursor:pointer;background:var(--danger); color:#fff;
+      transition: transform .16s ease, box-shadow .16s ease;
+    }
+    .delBtn:hover{ transform:scale(1.06); box-shadow: 0 8px 20px rgba(239,68,68,0.12) }
+
+    /* modal */
+    #modal{
+      position:fixed; left:50%; top:50%; transform:translate(-50%,-50%);
+      width:340px; z-index:9999;
+      border-radius:12px;
+      box-shadow: 0 20px 60px rgba(2,6,23,0.7);
+    }
+
+    /* responsive tweaks */
+    @media (max-width:640px){
+      body{padding:14px}
+      .container{padding-bottom:40px}
+      form{flex-direction:column}
+      input[type="date"], input[type="text"]{width:100%}
+      input[type="number"]{width:100%}
+    }
+
+    /* ===== Animations ===== */
+
+    /* small entrance for topbar */
+    .topbar{ opacity:0; transform:translateY(-6px); animation: topEnter .6s cubic-bezier(.2,.9,.2,1) .08s forwards; }
+    @keyframes topEnter{
+      to{opacity:1; transform:translateY(0)}
+    }
+
+    /* subtle card pop */
+    .card{ opacity:0; transform:translateY(6px) scale(.995); animation: cardPop .6s cubic-bezier(.2,.9,.2,1) forwards; }
+    @keyframes cardPop{
+      to{opacity:1; transform:translateY(0) scale(1)}
+    }
+
+    /* admin card appears a bit faster */
+    #adminCard{ animation-duration: .45s; }
+
+    /* chart zoom */
+    #pepsiChart{ opacity:0; transform:scale(.98) translateY(6px); animation: chartPop .7s ease .12s forwards; }
+    @keyframes chartPop{ to{opacity:1; transform:scale(1) translateY(0)} }
+
+    /* modal pop */
+    #modal{ opacity:0; transform:translate(-50%,-50%) scale(.92); animation: modalPop .32s ease .08s forwards; }
+    @keyframes modalPop{ to{opacity:1; transform:translate(-50%,-50%) scale(1)} }
+
+    /* floating stat micro animation */
+    .stat{ animation: floaty 4s ease-in-out infinite; }
+    @keyframes floaty{
+      0%,100%{ transform:translateY(0) }
+      50%{ transform:translateY(-6px) }
+    }
+
+    /* table row fade + slide with stagger applied via JS */
+    .row-anim{ opacity:0; transform:translateY(8px); transition: all .42s cubic-bezier(.2,.9,.2,1); }
+    .row-anim.show{ opacity:1; transform:translateY(0); }
+
+    /* tiny focus ring on login buttons for accessibility */
+    button:focus, .authBtn:focus { box-shadow: 0 6px 22px rgba(14,165,255,0.12); outline: none; }
+
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="topbar">
+      <h1>Pepsi Daily Consumption Tracker</h1>
+      <div>
+        <span id="userEmail" class="muted">Not signed in</span>
+        <button id="loginBtn" class="authBtn">Admin Login</button>
+        <button id="logoutBtn" class="authBtn hidden">Logout</button>
+      </div>
+    </div>
+
+    <div id="adminCard" class="card hidden" aria-hidden="true">
+      <form id="entryForm">
+        <input type="date" id="dateInput" required />
+        <input type="text" id="nameInput" placeholder="Name" required />
+        <input type="number" id="countInput" min="0" step="1" placeholder="Pepsi Count" required />
+        <input type="number" id="rupeesInput" min="0" step="1" placeholder="Rupees" required />
+        <button type="submit">Add / Update</button>
+        <button type="button" id="clearBtn" class="danger">Clear All (Admin)</button>
+      </form>
+
+      <div class="stats">
+        <div class="stat">Total Pepsi: <span id="total">0</span></div>
+        <div class="stat">Total Rupees: ₹<span id="totalRupees">0</span></div>
+        <div class="stat">Avg Pepsi/day: <span id="avg">0</span></div>
+        <div class="stat">Days tracked: <span id="days">0</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <canvas id="pepsiChart" height="120"></canvas>
+    </div>
+
+    <div class="card">
+      <strong>Entries (Newest First)</strong>
+      <table id="entriesTable">
+        <thead>
+          <tr><th>Date</th><th>Name</th><th>Count</th><th>Rupees</th><th>Action</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <!-- Simple modal for login -->
+    <div id="modal" class="card hidden" aria-hidden="true" style="display:none;">
+      <strong id="modalTitle">Admin Login</strong>
+      <form id="authForm" style="margin-top:8px;display:flex;flex-direction:column;gap:8px">
+        <input type="email" id="authEmail" placeholder="Admin email" required />
+        <input type="password" id="authPass" placeholder="Password" required />
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+          <button type="submit">Sign in</button>
+          <button type="button" id="createAdminBtn" style="background:transparent;border:1px solid rgba(255,255,255,0.06)">Create Admin Account</button>
+          <button type="button" id="closeModal" style="background:var(--danger);color:#fff">Close</button>
+        </div>
+      </form>
+      <div class="small muted" style="margin-top:8px">Tip: Enable Email/Password in Firebase Auth and create admin user. You can also use "Create Admin Account" once then remove it.</div>
+    </div>
+  </div>
+
+<script type="module">
+  // --------- FIREBASE SDK (modular) ----------
+  import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js';
+  import { getAnalytics } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-analytics.js';
+  import { getFirestore, collection, doc, setDoc, getDocs, onSnapshot, deleteDoc, query, orderBy, serverTimestamp } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js';
+  import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, createUserWithEmailAndPassword } from 'https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js';
+
+  // --------- YOUR FIREBASE CONFIG ----------
+  const firebaseConfig = {
+    apiKey: "AIzaSyBb48S4BjPAUuXWM1sYKRzj9MQBoaaeRds",
+    authDomain: "pepsi-c6d86.firebaseapp.com",
+    projectId: "pepsi-c6d86",
+    storageBucket: "pepsi-c6d86.firebasestorage.app",
+    messagingSenderId: "33753024168",
+    appId: "1:33753024168:web:4e01474c9b4fe95434649d",
+    measurementId: "G-ZZ0M9EJNM7"
+  };
+
+  // ---------- INIT ----------
+  const app = initializeApp(firebaseConfig);
+  try { getAnalytics(app); } catch(e) { /* ignore analytics errors on local files */ }
+  const db = getFirestore(app);
+  const auth = getAuth(app);
+
+  // ---------- UI REFS ----------
+  const dateInput = document.getElementById("dateInput");
+  const nameInput = document.getElementById("nameInput");
+  const countInput = document.getElementById("countInput");
+  const rupeesInput = document.getElementById("rupeesInput");
+  const entriesTbody = document.querySelector("#entriesTable tbody");
+  const totalEl = document.getElementById("total");
+  const totalRupeesEl = document.getElementById("totalRupees");
+  const avgEl = document.getElementById("avg");
+  const daysEl = document.getElementById("days");
+
+  const adminCard = document.getElementById("adminCard");
+  const loginBtn = document.getElementById("loginBtn");
+  const logoutBtn = document.getElementById("logoutBtn");
+  const userEmailEl = document.getElementById("userEmail");
+
+  const modal = document.getElementById("modal");
+  const closeModal = document.getElementById("closeModal");
+  const authForm = document.getElementById("authForm");
+  const authEmail = document.getElementById("authEmail");
+  const authPass = document.getElementById("authPass");
+  const createAdminBtn = document.getElementById("createAdminBtn");
+
+  // Chart
+  const ctx = document.getElementById("pepsiChart").getContext("2d");
+  let chart = new Chart(ctx, {
+    type: "bar",
+    data: { labels: [], datasets: [{ label: "Pepsi/day", data: [], backgroundColor: 'rgba(14,165,255,0.9)', borderRadius:6 }] },
+    options: { responsive:true, plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true}} }
+  });
+
+  // Admin email that is allowed to write (match with your auth user)
+  const ADMIN_EMAIL = "pepsiadmin123@gmail.com";
+
+  // ---------- AUTH UI ----------
+  loginBtn.addEventListener("click", ()=>{
+    modal.style.display = "";
+    modal.classList.remove("hidden");
+    modal.setAttribute("aria-hidden","false");
+  });
+  closeModal.addEventListener("click", ()=>{
+    modal.style.display = "none";
+    modal.classList.add("hidden");
+    modal.setAttribute("aria-hidden","true");
+  });
+
+  authForm.addEventListener("submit", async (e)=>{
+    e.preventDefault();
+    const email = authEmail.value.trim();
+    const pass = authPass.value;
+    try {
+      await signInWithEmailAndPassword(auth, email, pass);
+      modal.style.display = "none";
+      modal.classList.add("hidden");
+      authForm.reset();
+    } catch(err){
+      alert("Sign-in failed: " + (err.message || err));
+      console.error(err);
+    }
+  });
+
+  createAdminBtn.addEventListener("click", async ()=>{
+    const email = authEmail.value.trim();
+    const pass = authPass.value;
+    if(!email || !pass) return alert("Enter email & password to create admin.");
+    if(!confirm("Create this admin account in Firebase Authentication?")) return;
+    try {
+      await createUserWithEmailAndPassword(auth, email, pass);
+      alert("Admin account created. Now sign in.");
+    } catch(err){
+      alert("Create account failed: " + (err.message || err));
+      console.error(err);
+    }
+  });
+
+  logoutBtn.addEventListener("click", async ()=>{
+    await signOut(auth);
+  });
+
+  // Toggle UI based on auth state and whether user is admin email
+  let currentUser = null;
+  onAuthStateChanged(auth, user=>{
+    currentUser = user;
+    const isAdmin = user && user.email === ADMIN_EMAIL;
+    userEmailEl.textContent = user ? user.email : "Not signed in";
+    if(isAdmin){
+      adminCard.classList.remove("hidden");
+      adminCard.setAttribute("aria-hidden","false");
+      logoutBtn.classList.remove("hidden");
+      loginBtn.classList.add("hidden");
+    } else {
+      adminCard.classList.add("hidden");
+      adminCard.setAttribute("aria-hidden","true");
+      logoutBtn.classList.add("hidden");
+      loginBtn.classList.remove("hidden");
+    }
+    // update action buttons visibility (delete/edit) when data renders
+    renderLocalCache();
+  });
+
+  // ---------- FIRESTORE: collection ref ----------
+  const recordsCol = collection(db, "records");
+
+  // local cache
+  let data = []; // array of {date,name,count,rupees}
+
+  // realtime listener
+  const q = query(recordsCol, orderBy("date"));
+  onSnapshot(q, snapshot=>{
+    const arr = [];
+    snapshot.forEach(docSnap=>{
+      arr.push(docSnap.data());
+    });
+    data = arr;
+    renderLocalCache();
+  }, err=>{
+    console.error("Listener error", err);
+  });
+
+  // ---------- Render ----------
+  function renderLocalCache(){
+    // sort ascending by date for chart
+    const sorted = [...data].sort((a,b)=> a.date.localeCompare(b.date));
+    chart.data.labels = sorted.map(r=>r.date);
+    chart.data.datasets[0].data = sorted.map(r=>r.count || 0);
+    chart.update();
+
+    // table newest first
+    entriesTbody.innerHTML = "";
+    const newest = [...data].sort((a,b)=> b.date.localeCompare(a.date));
+    for(const r of newest){
+      const tr = document.createElement("tr");
+      tr.classList.add("row-anim");
+      const isAdmin = currentUser && currentUser.email === ADMIN_EMAIL;
+      tr.innerHTML = `
+        <td>${escapeHtml(r.date)}</td>
+        <td>${escapeHtml(r.name)}</td>
+        <td>${escapeHtml(String(r.count))}</td>
+        <td>₹${escapeHtml(String(r.rupees))}</td>
+        <td>${isAdmin ? `<button data-date="${escapeHtml(r.date)}" class="delBtn">Delete</button>` : ''}</td>
+      `;
+      entriesTbody.appendChild(tr);
+    }
+
+    // animate rows with small stagger
+    const rows = Array.from(entriesTbody.querySelectorAll('.row-anim'));
+    rows.forEach((tr, i) => {
+      setTimeout(()=> tr.classList.add('show'), 60 * i); // 60ms stagger
+    });
+
+    // stats
+    const total = data.reduce((s,x)=> s + (Number(x.count)||0), 0);
+    const totalR = data.reduce((s,x)=> s + (Number(x.rupees)||0), 0);
+    totalEl.textContent = total;
+    totalRupeesEl.textContent = totalR;
+    daysEl.textContent = data.length;
+    avgEl.textContent = (data.length ? (total / data.length) : 0).toFixed(2);
+  }
+
+  // ---------- Add / Update / Delete ----------
+  document.getElementById("entryForm").addEventListener("submit", async (e)=>{
+    e.preventDefault();
+    if(!currentUser || currentUser.email !== ADMIN_EMAIL) return alert("Only admin can add or update entries.");
+
+    const date = dateInput.value;
+    const name = nameInput.value.trim();
+    const count = Number(countInput.value) || 0;
+    const rupees = Number(rupeesInput.value) || 0;
+    if(!date || !name) return alert("Date and Name required.");
+
+    try {
+      // use document ID = date to make add/update by date easy
+      const docRef = doc(recordsCol, date);
+      await setDoc(docRef, { date, name, count, rupees, updatedAt: serverTimestamp() });
+      // clear inputs (keep date)
+      nameInput.value = "";
+      countInput.value = "";
+      rupeesInput.value = "";
+    } catch(err){
+      console.error(err);
+      alert("Save failed: " + (err.message || err));
+    }
+  });
+
+  entriesTbody.addEventListener("click", async (e)=>{
+    const btn = e.target.closest(".delBtn");
+    if(!btn) return;
+    if(!currentUser || currentUser.email !== ADMIN_EMAIL) return alert("Only admin can delete.");
+    const date = btn.dataset.date;
+    if(!confirm("Delete record for " + date + " ?")) return;
+    try {
+      await deleteDoc(doc(recordsCol, date));
+    } catch(err){
+      console.error(err);
+      alert("Delete failed: " + (err.message || err));
+    }
+  });
+
+  document.getElementById("clearBtn").addEventListener("click", async ()=>{
+    if(!currentUser || currentUser.email !== ADMIN_EMAIL) return alert("Only admin can clear.");
+    if(!confirm("Delete ALL records? This cannot be undone.")) return;
+    try {
+      // delete docs one-by-one (no batch to keep code simple)
+      const snaps = await getDocs(recordsCol);
+      const promises = [];
+      snaps.forEach(s => promises.push(deleteDoc(doc(recordsCol, s.id))));
+      await Promise.all(promises);
+      alert("All records deleted.");
+    } catch(err){
+      console.error(err);
+      alert("Clear failed: " + (err.message || err));
+    }
+  });
+
+  // set date to today by default
+  dateInput.value = new Date().toISOString().split("T")[0];
+
+  // helper to populate inputs when admin double-clicks a row
+  entriesTbody.addEventListener("dblclick", (e)=>{
+    const tr = e.target.closest("tr");
+    if(!tr) return;
+    const tds = tr.querySelectorAll("td");
+    if(tds.length < 4) return;
+    const d = tds[0].textContent;
+    const docRecord = data.find(x => x.date === d);
+    if(!docRecord) return;
+    // only admin can edit, populate form
+    if(currentUser && currentUser.email === ADMIN_EMAIL){
+      dateInput.value = docRecord.date;
+      nameInput.value = docRecord.name;
+      countInput.value = docRecord.count;
+      rupeesInput.value = docRecord.rupees;
+    } else {
+      alert("Only admin can edit.");
+    }
+  });
+
+  // initial render (empty until snapshot fires)
+  renderLocalCache();
+
+  // --- utility to escape strings for safety in innerHTML injection ---
+  function escapeHtml(str){
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+</script>
+</body>
+</html>
